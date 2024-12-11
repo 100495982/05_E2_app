@@ -1,0 +1,1 @@
+Ejecuta el archivo main.py, crea 2 usuarios, envia mensaje de una a otro, y lee el mensaje desde el otro usuario.
