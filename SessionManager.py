@@ -85,46 +85,53 @@ class UserSession:
 
         payload_file = "payload.json"
 
-        if not os.path.exists(payload_file):
-            with open(payload_file, "w") as f:
-                payload = {
-                    "sender": self.username,
-                    "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                    "message": message
-                }
-                json.dump(payload, f, indent=4)
+        try:
+            # Create payload.json if it doesn't exist
+            if not os.path.exists(payload_file):
+                with open(payload_file, "w") as f:
+                    payload = {
+                        "sender": self.username,
+                        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                        "message": message
+                    }
+                    json.dump(payload, f, indent=4)
 
-        with open(payload_file, "r") as f:
-            payload_data = f.read()
+            # Load payload
+            with open(payload_file, "r") as f:
+                payload_data = f.read()
 
-        # Encrypt message
-        chacha = ChaCha20Poly1305(derived_key)
-        nonce = os.urandom(12)
-        ciphertext = chacha.encrypt(nonce, payload_data.encode('utf-8'), None)
+            # Encrypt message
+            chacha = ChaCha20Poly1305(derived_key)
+            nonce = os.urandom(12)
+            ciphertext = chacha.encrypt(nonce, payload_data.encode('utf-8'), None)
 
-        # Sign the plaintext message
-        signature = self.sign_message(ciphertext)
+            # Sign the ciphertext
+            signature = self.sign_message(ciphertext)
 
-        # Attach sender's certificate
-        with open(f"{self.username}_cert.pem", "rb") as cert_file:
-            cert_data = cert_file.read()
+            # Attach sender's certificate
+            with open(f"{self.username}_cert.pem", "rb") as cert_file:
+                cert_data = cert_file.read()
 
-        # Store encrypted message, nonce, signature, and certificate
-        with open(f"messages_{receiver_username}.txt", "ab") as f:
-            f.write(json.dumps({
-                "sender_public_key": self.public_key.public_bytes(
-                    encoding=serialization.Encoding.PEM,
-                    format=serialization.PublicFormat.SubjectPublicKeyInfo
-                ).decode('utf-8'),
-                "nonce": base64.b64encode(nonce).decode('utf-8'),
-                "ciphertext": base64.b64encode(ciphertext).decode('utf-8'),
-                "signature": base64.b64encode(signature).decode('utf-8'),
-                "certificate": cert_data.decode('utf-8'),
-                "read_status": 0
-            }).encode() + b"\n")
-
-        if os.path.exists(payload_file):
-            os.remove(payload_file)
+            # Store encrypted message, nonce, signature, and certificate
+            with open(f"messages_{receiver_username}.txt", "ab") as f:
+                f.write(json.dumps({
+                    "sender_public_key": self.public_key.public_bytes(
+                        encoding=serialization.Encoding.PEM,
+                        format=serialization.PublicFormat.SubjectPublicKeyInfo
+                    ).decode('utf-8'),
+                    "nonce": base64.b64encode(nonce).decode('utf-8'),
+                    "ciphertext": base64.b64encode(ciphertext).decode('utf-8'),
+                    "signature": base64.b64encode(signature).decode('utf-8'),
+                    "certificate": cert_data.decode('utf-8'),
+                    "read_status": 0
+                }).encode() + b"\n")
+        except Exception as e:
+            print(f"Error during encryption: {e}")
+            raise  # Re-raise the exception after logging
+        finally:
+            # Ensure payload.json is securely deleted
+            if os.path.exists(payload_file):
+                os.remove(payload_file)
 
         # print("Message encrypted, signed, and stored successfully.")
 
